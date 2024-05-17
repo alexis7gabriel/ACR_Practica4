@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class wget {
     
-    private static final int MAX_THREADS = 10; // Máximo de hilos permitidos
+    private static final int MAX_THREADS = 100; // Máximo de hilos permitidos
     private static final String OUTPUT_FOLDER = System.getProperty("user.dir");; // Carpeta de salida para guardar los archivos
     private static final Set<String> visitedPages = new HashSet<>(); // Páginas visitadas
     private static final ReadWriteLock lock = new ReentrantReadWriteLock(); // Lock para acceso concurrente a la lista de páginas visitadas
@@ -47,9 +47,9 @@ public class wget {
         }
 
         //creacion de la alberca de hilos
-        ExecutorService executor = Executors.newFixedThreadPool(MAX_THREADS);
-        crawl(startUrl, 0, OUTPUT_FOLDER, maxDepth, executor);
-        executor.shutdown();
+        //ExecutorService executor = Executors.newFixedThreadPool(MAX_THREADS);
+        crawl(startUrl, 0, OUTPUT_FOLDER, maxDepth);
+        //executor.shutdown();
         
         System.out.println("\nPáginas visitadas:");
         for (String page : visitedPages) {
@@ -57,7 +57,7 @@ public class wget {
         }
     }
 
-    private static void crawl(String url, int depth, String FOLDER, int MAX_DEPTH, ExecutorService executor) {
+    private static void crawl(String url, int depth, String FOLDER, int MAX_DEPTH ){
         if (depth > MAX_DEPTH) {
             return;
         }
@@ -86,6 +86,7 @@ public class wget {
 
                 // Tokenizar los enlaces <a> y mostrarlos
                 // Encontrar enlaces y descargar páginas en hilos separados
+                ExecutorService executor = Executors.newFixedThreadPool(MAX_THREADS);
                 Elements links = doc.select("a[href]");
                 System.out.println("\nEnlaces encontrados en la página:");
                 for (Element link : links) {
@@ -98,23 +99,14 @@ public class wget {
                         downloadDocument(folderName, href);
                     } else {
                         // Verificar si el enlace es válido y no está en el patrón no deseado
-                        if (!href.matches(".*\\?C=(N|M|S);O=(D|A)$")) {                            
-                            executor.submit(() -> crawl(href, depth + 1, folderName, MAX_DEPTH, executor)); // Enviar hilo para descargar la nueva página
+                        if (!href.matches(".*\\?C=(N|M|S|D);O=(D|A)$")) {                            
+                            executor.submit(() -> crawl(href, depth + 1, folderName, MAX_DEPTH)); // Enviar hilo para descargar la nueva página
                         } else {
                             System.out.println("entro en pagina no deseada");
                         }
                     }
+                    
                 }
-               /* for (Element link : links) {
-                    String nextUrl = link.absUrl("href");
-                    System.out.println("enlace actual antes de mandar el hilo: " + nextUrl);
-                    if (!nextUrl.matches(".*\\?C=(N|M|S);O=(D|A)$")) { // Filtrar enlaces con patrón '?C=N;O=D', '?C=M;O=A', '?C=S;O=A'
-                        executor.submit(() -> crawl(nextUrl, depth + 1));
-                    } else {
-                        System.out.println("entro en pagina no deseada");
-                    }
-                    //executor.submit(() -> crawl(nextUrl, depth + 1));
-                }*/
                 executor.shutdown();
             } catch (IOException e) {
                 e.printStackTrace();
