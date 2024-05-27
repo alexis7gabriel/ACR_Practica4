@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class wget {
     
-    private static final int MAX_THREADS = 100; // Máximo de hilos permitidos
+    private static final int MAX_THREADS = 5; // Máximo de hilos permitidos
     private static final String OUTPUT_FOLDER = System.getProperty("user.dir");; // Carpeta de salida para guardar los archivos
     private static final Set<String> visitedPages = new HashSet<>(); // Páginas visitadas
     private static final ReadWriteLock lock = new ReentrantReadWriteLock(); // Lock para acceso concurrente a la lista de páginas visitadas
@@ -87,27 +87,40 @@ public class wget {
                 // Tokenizar los enlaces <a> y mostrarlos
                 // Encontrar enlaces y descargar páginas en hilos separados
                 ExecutorService executor = Executors.newFixedThreadPool(MAX_THREADS);
-                Elements links = doc.select("a[href]");
-                System.out.println("\nEnlaces encontrados en la página:");
-                for (Element link : links) {
-                    String href = link.absUrl("href");
-                    System.out.println("enlace encontrado: " + href);
+                
+                String htmlFileName = folderName + "/Index.html";
+                
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(htmlFileName))) {
+                    writer.write("<html><head><title>Indice de " + url + "</title></head><body>");
+                    writer.write("<h1>Indice</h1><ul>");
+                
+                    Elements links = doc.select("a[href]");
+                    System.out.println("\nEnlaces encontrados en la página:");
+                    for (Element link : links) {
+                        String href = link.absUrl("href");
+                        System.out.println("enlace encontrado: " + href);
 
-                    // Verificar si el enlace termina con una extensión de archivo
-                    if (href.matches(".*\\.[a-zA-Z0-9]{1,5}$")) {
-                        // Descargar documento y guardarlo
-                        downloadDocument(folderName, href);
-                    } else {
-                        // Verificar si el enlace es válido y no está en el patrón no deseado
-                        if (!href.matches(".*\\?C=(N|M|S|D);O=(D|A)$")) {                            
-                            executor.submit(() -> crawl(href, depth + 1, folderName, MAX_DEPTH)); // Enviar hilo para descargar la nueva página
+                        // Verificar si el enlace termina con una extensión de archivo
+                        if (href.matches(".*\\.[a-zA-Z0-9]{1,5}$")) {
+                            // Descargar documento y guardarlo
+                            String filePath = downloadDocument(folderName, href);
+                            writer.write("<li><a href=\"" + filePath + "\">" + href.substring(url.lastIndexOf('/') + 1) + "</a></li>");
                         } else {
-                            System.out.println("entro en pagina no deseada");
+                            // Verificar si el enlace es válido y no está en el patrón no deseado
+                            if (!href.matches(".*\\?C=(N|M|S|D);O=(D|A)$")) {                           
+                                if(!(depth+1 > MAX_DEPTH)){
+                                    String subFolderName = folderName + "/" + getFolderNameFromUrl(href);
+                                    writer.write("<li><img src=\"C:\\Users\\cesar\\Desktop\\ACR\\Practica4\\Practica4\\folder.gif\" alt=\"[DIR]\"><a href=\"" + subFolderName + "/Index.html\">" + getFolderNameFromUrl(href) + "</a></li>");    
+                                }
+                                executor.submit(() -> crawl(href, depth + 1, folderName, MAX_DEPTH)); // Enviar hilo para descargar la nueva página
+                            } else {
+                                System.out.println("entro en pagina no deseada");
+                            }
                         }
                     }
-                    
+                    writer.write("</ul></body></html>");
+                    executor.shutdown();
                 }
-                executor.shutdown();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -116,12 +129,14 @@ public class wget {
         }
                 
     }
-    private static void downloadDocument(String folder, String url) {
+    private static String downloadDocument(String folder, String url) {
+        String filePath = null;
         try {
             URL documentUrl = new URL(url);
             String fileName = url.substring(url.lastIndexOf('/') + 1);
             System.out.println("Nombre del archivo: " + fileName);
             File outputFile = new File(folder, fileName);
+            filePath = outputFile.getAbsolutePath();
 
             try (InputStream inputStream = documentUrl.openStream();
                  FileOutputStream outputStream = new FileOutputStream(outputFile)) {
@@ -139,6 +154,7 @@ public class wget {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return filePath;
     }
     private static String getFolderNameFromUrl(String url) {
         String folderName = url.substring(url.lastIndexOf('/') + 1);
